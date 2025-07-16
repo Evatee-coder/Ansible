@@ -1,0 +1,143 @@
+name: Deploy Nginxwith Terraform + Ansible
+
+
+on:
+  push:
+    branches:
+      - main  # Adjust as needed
+  workflow_dispatch: # Allow manual triggering of the workflow
+
+jobs:
+  deploy:
+    name: Deploy Infrastructure and Configure Nginx
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+          terraform_wrapper: false # Needed for output parsing
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+
+      - name: Terraform Init
+        run: |
+          cd infra
+          terraform init
+
+      - name: Terraform Format Check
+        run: |
+          cd infra
+          terraform fmt -check
+
+      - name: Terraform Validate
+        run: |
+          cd infra
+          terraform validate
+
+      - name: Terraform Plan
+        run: |
+          cd infra
+          terraform plan
+
+      - name: Apply Terraform deployment
+        run: |
+          cd infra
+          terraform apply -auto-approve
+
+      - name: Get EC2 Public IP
+        id: terraform_output
+        run: |
+          cd infra
+          PUBLIC_IP=$(terraform output -raw public_ip)
+          echo "public_ip=${PUBLIC_IP}" >> $GITHUB_OUTPUT
+          echo "Public IP: $PUBLIC_IP"
+
+      - name: Set up SSH key for Ansible
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/private_key.pem
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ steps.terraform_output.outputs.public_ip }} >> ~/.ssh/known_hosts
+
+      - name: Set up Python and Ansible
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'  # Specify the Python version you need
+        
+      - name: Install Ansible
+        run: |
+          python -m pip install --upgrade pip
+          pip install ansible
+
+      - name: Update Ansible inventory
+        run: |
+          cat > ansible/inventory/hosts.ini << EOF
+          [nginx_servers]
+          ${{ steps.terraform_output.outputs.public_ip }} ansible_host=${{ steps.terraform_output.outputs.public_ip }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
+
+          [nginx_servers:vars]
+          ansible_python_interpreter=/usr/bin/python3
+          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
+          EOF
+          
+          echo "Updated Ansible inventory:"
+          cat ansible/inventory/hosts.ini
+
+      - name: Wait for EC2 instance to be ready
+        run: |
+          echo "Waiting for EC2 instance to be ready..."
+          sleep 60  # Adjust the sleep time as necessary    
+
+          # Test SSH connectivity
+          for i in {1..5}; do
+            if ssh -o StrictHostKeyChecking=no -o ConnectTimeout=10 -i ~/.ssh/id_rsa ubuntu@${{ steps.terraform_output.outputs.public_ip }} "echo 'SSH connection successful'"; then
+              echo "SSH connection established"
+              break
+            fi
+            echo "SSH connection failed, retrying in 30 seconds..."
+            sleep 30
+          done
+
+      - name: Run Ansible Playbook
+        run: |
+          ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook.yml -v
+
+
+      - name: Verify deployment
+        run: |
+          echo "Verifying Nginx deployment..."
+          PUBLIC_IP="${{ steps.terraform_output.outputs.public_ip }}"
+          
+          # Wait a bit for nginx to start
+          sleep 10
+
+          # Test HTTP connection
+          if curl -s -o /dev/null -w "%{http_code}" "http://$PUBLIC_IP" --connect-timeout 10 | grep -q "200"; then
+            echo "Nginx is up and running and accessible at http://$PUBLIC_IP"
+          else
+            echo "Nginx is not responding. Manual verification may be needed."
+            echo " Manual verification URL: http://$PUBLIC_IP"
+          fi 
+
+      - name: Deployment summary
+        run: |
+          echo "## Deployment Complete! >> $GITHUB_STEP_SUMMARY"
+          echo "| Component | Status |" >> $GITHUB_STEP_SUMMARY
+          echo "|-----------|--------|" >> $GITHUB_STEP_SUMMARY
+          echo "| Terraform | ✅ Infrastructure provisioned successfully |" >> $GITHUB_STEP_SUMMARY
+          echo "| Ansible   | Nginx configured successfully |" >> $GITHUB_STEP_SUMMARY
+          echo "| URL       | http://${{ steps.terraform_output.outputs.public_ip }} |" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Access Your Server" >> $GITHUB_STEP_SUMMARY
+          echo "- **Web Interface**: http://${{ steps.terraform_output.outputs.public_ip }}" >> $GITHUB_STEP_SUMMARY
+          echo "- **SSH Access**: \`ssh -i ~/.ssh/private_key.pem ubuntu@${{ steps.terraform_output.outputs.public_ip }}\`" >> $GITHUB_STEP_SUMMARY

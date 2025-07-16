@@ -1,0 +1,39 @@
+# Terraform state files
+*.tfstate
+*.tfstate.backup
+
+# Terraform plan and crash logs
+*.tfplan
+crash.log
+terraform.tfvars
+*.tfvars
+
+# .terraform directory (plugins, modules, etc.)
+.terraform/
+
+# Sensitive files (e.g., custom secrets)
+*.pem
+*.key
+*.crt
+
+# SSH private key (ensure not committed)
+id_rsa
+id_rsa.pub
+
+# Local override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# Editor and system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# GitHub workflow cache (if any in the future)
+.github/workflows/.cache/
