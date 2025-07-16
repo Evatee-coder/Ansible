@@ -64,8 +64,9 @@ jobs:
 
       - name: Set up SSH key for Ansible
         run: |
+          sleep 60
           mkdir -p ~/.ssh
-          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/private_key.pem
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_rsa
           chmod 600 ~/.ssh/id_rsa
           ssh-keyscan -H ${{ steps.terraform_output.outputs.public_ip }} >> ~/.ssh/known_hosts
 
