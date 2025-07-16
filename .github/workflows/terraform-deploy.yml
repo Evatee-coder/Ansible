@@ -82,14 +82,13 @@ jobs:
 
       - name: Update Ansible inventory
         run: |
-          cat > ansible/inventory/hosts.ini << EOF
-          [nginx_servers]
-          ${{ steps.terraform_output.outputs.public_ip }} ansible_host=${{ steps.terraform_output.outputs.public_ip }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa
-
-          [nginx_servers:vars]
-          ansible_python_interpreter=/usr/bin/python3
-          ansible_ssh_common_args='-o StrictHostKeyChecking=no'
-          EOF
+          mkdir -p ansible/inventory
+          echo "[nginx_servers]" > ansible/inventory/hosts.ini
+          echo "${{ steps.terraform_output.outputs.public_ip }} ansible_host=${{ steps.terraform_output.outputs.public_ip }} ansible_user=ubuntu ansible_ssh_private_key_file=~/.ssh/id_rsa" >> ansible/inventory/hosts.ini
+          echo "" >> ansible/inventory/hosts.ini
+          echo "[nginx_servers:vars]" >> ansible/inventory/hosts.ini
+          echo "ansible_python_interpreter=/usr/bin/python3" >> ansible/inventory/hosts.ini
+          echo "ansible_ssh_common_args='-o StrictHostKeyChecking=no' " >> ansible/inventory/hosts.ini
           
           echo "Updated Ansible inventory:"
           cat ansible/inventory/hosts.ini
