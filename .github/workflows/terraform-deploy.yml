@@ -110,7 +110,8 @@ jobs:
 
       - name: Run Ansible Playbook
         run: |
-          ansible-playbook -i ansible/inventory/hosts.ini ansible/playbook.yml -v
+          cd ansible
+          ansible-playbook -i inventory/hosts.ini nginx-playbook.yml -v
 
 
       - name: Verify deployment
