@@ -1,4 +1,4 @@
-name: Deploy Nginxwith Terraform + Ansible
+name: Deploy Nginx with Terraform + Ansible
 
 
 on:

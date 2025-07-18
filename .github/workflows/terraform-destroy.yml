@@ -27,7 +27,7 @@ jobs:
       - name: Initialize Terraform
         run: |
           cd infra
-          terraform init
+          terraform init -input=false
 
       - name: Output public IP (if exists)
         continue-on-error: true
@@ -38,8 +38,13 @@ jobs:
       - name: Destroy infrastructure
         run: |
           cd infra
+          echo "Starting Terraform destroy..."
           terraform destroy -auto-approve
 
       - name: ✅ Completed
+        if: success()
         run: echo "Terraform destroy completed successfully."
 
+      - name: ❌ On Failure
+        if: failure()
+        run: echo "❌ Terraform destroy failed. Check the logs for details."
